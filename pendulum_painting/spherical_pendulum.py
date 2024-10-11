@@ -13,7 +13,7 @@ theta_0 = np.pi / 6
 d_theta_0 = 0
 phi_0 = 0
 d_phi_0 = np.pi / 4.2  # 初始角速度
-Air_friction = 3.4 * 10**(-2)
+Air_friction = 8 * 10**(-2)
 
 # 方程
 def equations(t, y):
@@ -39,6 +39,9 @@ x = l * np.sin(theta) * np.cos(phi)
 y = l * np.sin(theta) * np.sin(phi)
 z = 1.5 - l * np.cos(theta)
 
+# 地面高度参数
+ground_height = -3.5
+
 # 创建图和轴
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
@@ -52,7 +55,7 @@ z_sphere = 1.5 + l * np.outer(np.cos(v), np.ones_like(u))
 ax.plot_surface(x_sphere, y_sphere, z_sphere, color='c', alpha=0.1, linewidth=0)
 
 # 绘制地面
-ax.plot_surface(np.array([[-3.5, 3.5], [-3.5, 3.5]]), np.array([[-3.5, -3.5], [3.5, 3.5]]), np.zeros((2, 2)), color='gray', alpha=0.5)
+ax.plot_surface(np.array([[-3.5, 3.5], [-3.5, 3.5]]), np.array([[-3.5, -3.5], [3.5, 3.5]]), np.full((2, 2), ground_height), color='gray', alpha=0.5)
 
 # 设置图的边界
 ax.set_xlim([-3.5, 3.5])
@@ -87,13 +90,13 @@ def update(frame):
 
     # 计算交点
     if z[frame] != 1.5:
-        factor = (0 - 1.5) / (z[frame] - 1.5)
+        factor = (ground_height - 1.5) / (z[frame] - 1.5)
         inter_x = factor * (x[frame] - 0) + 0
         inter_y = factor * (y[frame] - 0) + 0
         trace_x.append(inter_x)
         trace_y.append(inter_y)
         trace.set_data(trace_x, trace_y)
-        trace.set_3d_properties([0] * len(trace_x))
+        trace.set_3d_properties([ground_height] * len(trace_x))
 
     return line, point, rope, trace
 
