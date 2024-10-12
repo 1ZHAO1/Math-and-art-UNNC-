@@ -1,6 +1,7 @@
 from manim import *
 import numpy as np
 from scipy.integrate import solve_ivp
+import random
 
 # 物理常数
 g = 9.81
@@ -10,7 +11,7 @@ l = 4  # 绳长，同时也是球面半径
 theta_0 = np.pi / 6
 d_theta_0 = 0
 phi_0 = 0
-d_phi_0 = np.pi / 4.2  # 初始角速度
+d_phi_0 = np.pi / 4 # 初始角速度
 Air_friction = 8 * 10**(-2)
 
 # 方程
@@ -23,7 +24,7 @@ def equations(t, y):
 # 时间跨度和初始条件
 t_span = (0, 20)
 y0 = [theta_0, d_theta_0, phi_0, d_phi_0]
-t_eval = np.linspace(t_span[0], t_span[1], 1000)  # 增加点的密度，提升平滑度
+t_eval = np.linspace(t_span[0], t_span[1], 1000)
 
 # 求解微分方程
 sol = solve_ivp(equations, t_span, y0, t_eval=t_eval, method='RK45')
@@ -39,45 +40,67 @@ z = 1.5 - l * np.cos(theta)
 
 class SphericalPendulum(ThreeDScene):
     def construct(self):
-        # 绳子的顶端位置
-        top_point = np.array([0, 0, 1.5])
+        # 初始化粒子群体和拖尾路径
+        particles = VGroup()
+        trails = VGroup()
 
-        # 创建摆球
-        pendulum_ball = Sphere(radius=0.1, color=RED)
-        pendulum_ball.move_to([x[0], y[0], z[0]])
+        # 发射源为初始位置
+        emission_source = np.array([x[0], y[0], z[0]])
 
-        # 绳子
-        rope = Line(top_point, pendulum_ball.get_center(), color=WHITE)
+        # 粒子发射时间间隔控制
+        last_emission_time = 0
+        emission_interval = 0.3  # 粒子发射的时间间隔，单位秒
 
-        # 创建地面轨迹
-        trace = TracedPath(pendulum_ball.get_center, stroke_color=GREEN, stroke_width=2)
+        # 动态更新粒子和拖尾的函数
+        def update_particles(mob, dt):
+            nonlocal last_emission_time
 
-        # 将摆球、绳子和轨迹添加到场景中
-        self.add(pendulum_ball, rope, trace)
-
-        # 更新函数
-        def update_pendulum(mob, dt):
-            current_time = self.renderer.time  # 获取当前时间
+            current_time = self.renderer.time
             current_frame = int(current_time * 25) % len(t_eval)
-            pendulum_ball.move_to([x[current_frame], y[current_frame], z[current_frame]])
-            rope.put_start_and_end_on(top_point, pendulum_ball.get_center())
 
-        pendulum_ball.add_updater(update_pendulum)
-        rope.add_updater(update_pendulum)
+            # 只有当间隔达到指定时间才发射新粒子
+            if current_time - last_emission_time > emission_interval:
+                # 创建新粒子作为小球，并从发射源开始
+                new_particle = Sphere(radius=0.1, color=BLUE)
+                new_particle.move_to(emission_source)
 
-        # 显示俯视图、侧视图和3D视图
-        self.set_camera_orientation(phi=75 * DEGREES, theta=45 * DEGREES)  # 初始 3D 视图
-        self.play(Create(rope), Create(pendulum_ball))
-        self.wait(5)
+                # 为粒子创建自己的拖尾
+                new_trail = VMobject(stroke_color=BLUE, stroke_width=1)
+                # 初始化拖尾的第一个点为发射源位置，确保有点可以更新
+                new_trail.set_points_as_corners([emission_source])
+                particles.add(new_particle)
+                trails.add(new_trail)
 
-        # 切换到俯视图
-        self.move_camera(phi=0 * DEGREES, theta=90 * DEGREES, run_time=3)
-        self.wait(5)
+                # 更新发射时间
+                last_emission_time = current_time
 
-        # 切换到侧视图
-        self.move_camera(phi=90 * DEGREES, theta=0 * DEGREES, run_time=3)
-        self.wait(5)
+            # 更新粒子位置和拖尾路径
+            for i, particle in enumerate(particles):
+                frame = min(current_frame, len(t_eval) - 1)
 
-        # 切换回 3D 视图
-        self.move_camera(phi=75 * DEGREES, theta=45 * DEGREES, run_time=3)
-        self.wait(10)
+                # 移动粒子到轨迹的相应位置
+                particle.move_to([x[frame], y[frame], z[frame]])
+
+                # 更新拖尾的路径
+                new_point = particle.get_center()
+                
+                # 检查拖尾中是否已经有点，确保拖尾可以更新
+                if len(trails[i].points) > 0:
+                    trails[i].add_points_as_corners([new_point])
+                else:
+                    # 如果没有点则初始化
+                    trails[i].set_points_as_corners([new_point])
+
+        # 添加更新器以动态更新粒子和拖尾
+        particles.add_updater(update_particles)
+        trails.add_updater(update_particles)
+
+        # 添加到场景中
+        self.add(particles, trails)
+
+        # 设置相机角度
+        self.set_camera_orientation(phi=75 * DEGREES, theta=45 * DEGREES)
+
+        # 播放动画
+        self.wait(20)
+
